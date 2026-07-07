@@ -115,6 +115,7 @@ export class AudioEngine {
 
   update(dt: number, features: HadoFeatures, p: ParamState, nowMs: number): void {
     if (!this.started) return;
+    this.master.gain.setTargetAtTime(p.masterGain as number, this.now, 0.02);
     this.particles.modes = features.modes;
     this.sat.curve = satCurve(p.warmth as number);
     this.lp.frequency.setTargetAtTime(p.lowpass as number, this.now, 0.05);

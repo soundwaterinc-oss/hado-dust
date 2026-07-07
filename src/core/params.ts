@@ -1,6 +1,6 @@
 // params.ts — single source of truth for all parameters (drives UI, preset, TD send).
 // HADŌ DUST / 波動塵 — the quantum field expressed purely as particle rhythm (Jelinek dust).
-export type ParamTab = "GEO" | "FIELD" | "GROOVE" | "TEXTURE" | "MUTATE" | "IO";
+export type ParamTab = "PERFORM" | "GEO" | "FIELD" | "GROOVE" | "TEXTURE" | "MUTATE" | "IO" | "INFO";
 
 export interface NumberParam { kind: "number"; tab: ParamTab; label: string; min: number; max: number; def: number; step?: number; unit?: string }
 export interface EnumParam { kind: "enum"; tab: ParamTab; label: string; options: readonly string[]; def: string }
@@ -14,6 +14,9 @@ const e = (tab: ParamTab, label: string, options: readonly string[], def: string
 const b = (tab: ParamTab, label: string, def: boolean): BoolParam => ({ kind: "bool", tab, label, def });
 
 export const PARAMS = {
+  // ── PERFORM ──────────────────────────────────────────────────────────
+  masterGain: n("PERFORM", "master gain", 0, 1.5, 0.9, 0.01),
+
   // ── GEO ──────────────────────────────────────────────────────────────
   geoMode: e("GEO", "geo mode", ["PHYLLO", "LSYS", "VORO", "HYBRID"], "PHYLLO"),
   geoModeA: e("GEO", "hybrid A", ["PHYLLO", "LSYS", "VORO"], "PHYLLO"),
