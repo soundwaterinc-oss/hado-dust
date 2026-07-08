@@ -33,6 +33,9 @@ const PARAM_JA: Partial<Record<ParamName, string>> = {
   rmsTarget: "RMS目標", centTarget: "重心目標", freeze: "凍結",
   midiEnable: "MIDI有効", midiCh: "MIDIチャンネル", wsRate: "WS送信レート",
   sendField: "場送信", fieldRate: "場レート",
+  character: "キャラクター", arrangeOn: "自動展開", engine: "展開エンジン",
+  climate: "気候帯", current: "潮流", soil: "土質", weather: "天気",
+  sectionBars: "セクション小節", stageBars: "ステージ小節",
 };
 
 // One-line description per parameter (shown in the INFO tab).
@@ -109,6 +112,15 @@ const DESC_EN: Partial<Record<ParamName, string>> = {
   midiEnable: "enable WebMIDI output",
   midiCh: "MIDI channel",
   wsRate: "TouchDesigner JSON send rate",
+  character: "particle voice: DUST(Jelinek) / MONOLAKE(dub) / IKEDA(sine+click) / POLE(muffled crackle)",
+  arrangeOn: "auto-evolve the rhythm every section / stage (keeps the character)",
+  engine: "how factors map to development: PLANT growth · PHYSICS oscillation · GEOMETRY quantised",
+  climate: "factor: tropical→busy … polar→sparse (energy & tempo)",
+  current: "factor: warm / cold / gyre / upwelling (motion & density)",
+  soil: "factor: sand / clay / loam / volcanic (which particles dominate)",
+  weather: "factor: clear / rain / storm / fog (crackle, swing, darkness, space)",
+  sectionBars: "cycles per section — new pattern each section",
+  stageBars: "cycles per stage of the 1→5 arc (sparse→dense→resolve)",
   sendField: "stream the 64×64 |ψ|² field to TD",
   fieldRate: "TD field-frame rate",
 };
@@ -185,6 +197,15 @@ const DESC_JP: Partial<Record<ParamName, string>> = {
   midiEnable: "WebMIDI出力を有効化",
   midiCh: "MIDIチャンネル",
   wsRate: "TouchDesigner JSON送信レート",
+  character: "粒子の音色: DUST(Jelinek)/MONOLAKE(dub)/IKEDA(サイン+クリック)/POLE(こもった塵)",
+  arrangeOn: "セクション/ステージごとにリズムを自動変性（音色は保持）",
+  engine: "ファクターの写像: PLANT成長 · PHYSICS振動 · GEOMETRY量子化",
+  climate: "ファクター: 熱帯→密…極地→疎（エネルギー・テンポ）",
+  current: "ファクター: 暖流/寒流/環流/湧昇（動き・密度）",
+  soil: "ファクター: 砂/粘土/壌土/火山（どの粒子が支配的か）",
+  weather: "ファクター: 快晴/雨/嵐/霧（塵・スイング・暗さ・空間）",
+  sectionBars: "1セクションの周期数——毎セクション新パターン",
+  stageBars: "1→5アークの各ステージの周期数（疎→密→終）",
   sendField: "64×64 |ψ|² 場をTDへ送出",
   fieldRate: "TD場フレームレート",
 };
@@ -201,7 +222,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
   EN: {
     "tab.PERFORM": "PLAY", "tab.INFO": "INFO",
     "tab.GEO": "GEO", "tab.FIELD": "FIELD", "tab.GROOVE": "GROOVE", "tab.TEXTURE": "TEXTURE",
-    "tab.MUTATE": "MUTATE", "tab.IO": "IO",
+    "tab.EVOLVE": "EVOLVE", "tab.MUTATE": "MUTATE", "tab.IO": "IO",
     perform: "PERFORMANCE", quickPresets: "PRESETS", gateModeLabel: "GATE MODE",
     conceptTitle: "HADŌ DUST / 波動塵 — concept",
     concept:
@@ -225,7 +246,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
   JP: {
     "tab.PERFORM": "演奏", "tab.INFO": "説明",
     "tab.GEO": "幾何", "tab.FIELD": "場", "tab.GROOVE": "律動", "tab.TEXTURE": "質感",
-    "tab.MUTATE": "変性", "tab.IO": "入出力",
+    "tab.EVOLVE": "展開", "tab.MUTATE": "変性", "tab.IO": "入出力",
     perform: "演奏コントロール", quickPresets: "プリセット", gateModeLabel: "ゲート方式",
     conceptTitle: "HADŌ DUST / 波動塵 — 概念",
     concept:

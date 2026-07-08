@@ -1,6 +1,8 @@
 // params.ts — single source of truth for all parameters (drives UI, preset, TD send).
 // HADŌ DUST / 波動塵 — the quantum field expressed purely as particle rhythm (Jelinek dust).
-export type ParamTab = "PERFORM" | "GEO" | "FIELD" | "GROOVE" | "TEXTURE" | "MUTATE" | "IO" | "INFO";
+import { CHARACTERS } from "../audio/particles";
+import { ENGINES, CLIMATES, CURRENTS, SOILS, WEATHERS } from "../seq/arranger";
+export type ParamTab = "PERFORM" | "GEO" | "FIELD" | "GROOVE" | "TEXTURE" | "EVOLVE" | "MUTATE" | "IO" | "INFO";
 
 export interface NumberParam { kind: "number"; tab: ParamTab; label: string; min: number; max: number; def: number; step?: number; unit?: string }
 export interface EnumParam { kind: "enum"; tab: ParamTab; label: string; options: readonly string[]; def: string }
@@ -86,6 +88,17 @@ export const PARAMS = {
   dubMix: n("TEXTURE", "dub mix", 0, 1, 0.28, 0.01),
   reverbSize: n("TEXTURE", "reverb size", 0.5, 6, 2, 0.1, "s"),
   reverbMix: n("TEXTURE", "reverb mix", 0, 1, 0.22, 0.01),
+  character: e("TEXTURE", "character", CHARACTERS, "DUST"),
+
+  // ── EVOLVE (auto arrangement) ────────────────────────────────────────
+  arrangeOn: b("EVOLVE", "auto evolve", true),
+  engine: e("EVOLVE", "engine", ENGINES, "PLANT"),
+  climate: e("EVOLVE", "climate", CLIMATES, "temperate"),
+  current: e("EVOLVE", "current", CURRENTS, "warm"),
+  soil: e("EVOLVE", "soil", SOILS, "loam"),
+  weather: e("EVOLVE", "weather", WEATHERS, "clear"),
+  sectionBars: n("EVOLVE", "section bars", 4, 32, 16, 1),
+  stageBars: n("EVOLVE", "stage bars", 8, 64, 32, 1),
 
   // ── MUTATE ───────────────────────────────────────────────────────────
   feedAmount: n("MUTATE", "feed amount", 0, 1, 0.3, 0.01),

@@ -6,8 +6,8 @@ import { makeControl } from "./knob";
 import { PulseSequencer, ROWS } from "../seq/pulse";
 import { t, getLang, toggleLang, paramLabel, paramDesc } from "../core/i18n";
 
-const TABS: ParamTab[] = ["PERFORM", "GEO", "FIELD", "GROOVE", "TEXTURE", "MUTATE", "IO", "INFO"];
-const PARAM_TABS: ParamTab[] = ["GEO", "FIELD", "GROOVE", "TEXTURE", "MUTATE", "IO"];
+const TABS: ParamTab[] = ["PERFORM", "GEO", "FIELD", "GROOVE", "TEXTURE", "EVOLVE", "MUTATE", "IO", "INFO"];
+const PARAM_TABS: ParamTab[] = ["GEO", "FIELD", "GROOVE", "TEXTURE", "EVOLVE", "MUTATE", "IO"];
 const MACROS: ParamName[] = ["gateThresh", "warmth", "lowpass", "dubMix"];
 const PERFORM_MACROS: ParamName[] = ["gateThresh", "swing", "warmth", "lowpass", "dubMix", "reverbMix"];
 
