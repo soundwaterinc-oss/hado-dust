@@ -123,7 +123,7 @@ export class Arranger {
     const fogDark = f.weather === "fog" ? 0.6 : f.weather === "storm" ? 1.25 : 1;
     state.lowpass = clamp(Math.round((2500 + cV * 6000) * fogDark), 400, 16000);
     state.reverbMix = clamp(0.10 + weV * 0.25 + P.rev, 0, 1);
-    state.gateMode = P.gate; // stage drives the gate: intro/run reliable grid, bridge field-driven, finale both
+    // gateMode is intentionally NOT auto-changed — the user's chosen gate stays fixed.
 
     // ── regenerate the 8 lane patterns ──
     for (let l = 0; l < PARTICLES.length; l++) {
