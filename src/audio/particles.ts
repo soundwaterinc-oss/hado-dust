@@ -23,10 +23,10 @@ const CONFIGS: Record<Character, CC> = {
   POLE:     { clickMul: 0.5, clickQ: 4,  clickDecayMul: 1.7, tickMul: 0.6, pure: false, pips: false, grainFM: false, subDrive: 0.15, lp: 0.5, dustMul: 1.7, kickDrive: 0.35 },
 };
 
-// tanh saturation curve for the gritty kick body
+// HARD-CLIP curve — chunky square-ish edges for the "cable-pull" gutsy kick.
 function kickCurve(drive: number): Float32Array<ArrayBuffer> {
-  const n = 1024, c = new Float32Array(n), k = 1 + drive * 45;
-  for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 2 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); }
+  const n = 1024, c = new Float32Array(n), g = 1 + drive * 14;
+  for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 2 - 1; c[i] = Math.max(-1, Math.min(1, x * g)) * 0.92; }
   return c;
 }
 
@@ -109,32 +109,43 @@ export class ParticleKit {
     }
   }
 
-  // the kick of the machine — punchy, gritty, physical (Ikeda-ish): deep sine with a fast
-  // pitch drop through a saturation shaper + a mid thwack + a razor high click.
+  // the kick — "cable-pull" ブツっとゴツい: instant onset, hard-clipped chunky body,
+  // abrupt gated cut-off (the hard step = the unplug pop), broadband crackle + deep sub.
   private thud(time: number, lvl: number, p: ParamState, pan: number): void {
     const ctx = this.ctx;
     const cc = this.cc;
     const f = p.subTune as number;
     const pn = this.pan(pan * 0.3);
-    // body
+    const bodyLen = 0.06;
+    const cut = time + bodyLen;
+    const shaper = ctx.createWaveShaper(); shaper.curve = kickCurve(0.4 + cc.kickDrive * 0.6); shaper.oversample = "4x";
+    // body: sine + square, fast pitch drop, hard clipped
     const osc = ctx.createOscillator(); osc.type = "sine";
-    osc.frequency.setValueAtTime(f * 6, time);
-    osc.frequency.exponentialRampToValueAtTime(f, time + 0.04);
-    const shaper = ctx.createWaveShaper(); shaper.curve = kickCurve(cc.kickDrive); shaper.oversample = "2x";
-    const g = this.pluckEnv(time, 0.17, lvl);
-    osc.connect(shaper); shaper.connect(g); g.connect(pn);
-    osc.start(time); osc.stop(time + 0.22);
-    // thwack transient
-    const t2 = ctx.createOscillator(); t2.type = "triangle";
-    t2.frequency.setValueAtTime(f * 11, time);
-    t2.frequency.exponentialRampToValueAtTime(f * 2, time + 0.014);
-    const tg = this.pluckEnv(time, 0.02, lvl * 0.65);
-    t2.connect(tg); tg.connect(pn); t2.start(time); t2.stop(time + 0.05);
-    // razor click
-    const nz = this.noiseSrc(time, 0.006);
-    const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 2600 * cc.lp;
-    const ng = this.pluckEnv(time, 0.006, lvl * (0.3 + 0.5 * cc.kickDrive));
-    nz.connect(hp); hp.connect(ng); ng.connect(pn);
+    osc.frequency.setValueAtTime(f * 5, time);
+    osc.frequency.exponentialRampToValueAtTime(f, time + 0.022);
+    const sq = ctx.createOscillator(); sq.type = "square";
+    sq.frequency.setValueAtTime(f * 2.5, time);
+    sq.frequency.exponentialRampToValueAtTime(f, time + 0.03);
+    const sqg = ctx.createGain(); sqg.gain.value = 0.5;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, time);
+    g.gain.linearRampToValueAtTime(lvl * 1.2, time + 0.0004);
+    g.gain.setValueAtTime(lvl, cut);
+    g.gain.linearRampToValueAtTime(0, cut + 0.0012);   // ABRUPT cut = ブツッ
+    osc.connect(shaper); sq.connect(sqg); sqg.connect(shaper); shaper.connect(g); g.connect(pn);
+    osc.start(time); osc.stop(cut + 0.02); sq.start(time); sq.stop(cut + 0.02);
+    // deep DC-ish thump, also cut abruptly
+    const sub = ctx.createOscillator(); sub.type = "sine"; sub.frequency.value = f * 0.7;
+    const subg = ctx.createGain();
+    subg.gain.setValueAtTime(0, time); subg.gain.linearRampToValueAtTime(lvl * 0.85, time + 0.0006);
+    subg.gain.setValueAtTime(lvl * 0.65, cut); subg.gain.linearRampToValueAtTime(0, cut + 0.001);
+    sub.connect(subg); subg.connect(pn); sub.start(time); sub.stop(cut + 0.02);
+    // broadband "pull" crackle
+    const nz = this.noiseSrc(time, 0.004);
+    const nsh = ctx.createWaveShaper(); nsh.curve = kickCurve(0.8);
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(lvl * (0.5 + 0.5 * cc.kickDrive), time); ng.gain.linearRampToValueAtTime(0, time + 0.004);
+    nz.connect(nsh); nsh.connect(ng); ng.connect(pn);
     pn.connect(this.out);
   }
 
