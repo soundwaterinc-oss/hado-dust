@@ -17,8 +17,25 @@ const CLIMATE_V: Record<string, number> = { tropical: 0.9, temperate: 0.55, arid
 const CURRENT_V: Record<string, number> = { warm: 0.7, cold: 0.3, gyre: 0.5, upwelling: 0.85 };
 const SOIL_V: Record<string, number> = { sand: 0.3, clay: 0.6, loam: 0.78, volcanic: 0.92 };
 const WEATHER_V: Record<string, number> = { clear: 0.4, rain: 0.6, storm: 0.9, fog: 0.25 };
-const STAGE_E = [0, 0.2, 0.45, 0.7, 1.0, 0.4];
-const GATES = ["MANUAL", "QUANTUM", "AND", "OR"];
+// 5-stage narrative that loops: 1 intro → 2 running → 3 developed → 4 bridge(irregular)
+// → 5 finale(keeps the irregularity). e=energy, gate, swing add, irr=pattern irregularity,
+// rev=extra reverb, kick=thud(kick)-lane pattern. NOTE: stage 1 keeps a solid kick.
+interface Stage { e: number; gate: string; swing: number; irr: number; rev: number; kick: string }
+const STAGES: (Stage | null)[] = [null,
+  { e: 0.28, gate: "MANUAL",  swing: 0.00, irr: 0.05, rev: 0.14, kick: "floor" },     // 1 序章 intro
+  { e: 0.52, gate: "MANUAL",  swing: 0.03, irr: 0.05, rev: 0.05, kick: "floor" },     // 2 走り出し
+  { e: 0.85, gate: "AND",     swing: 0.05, irr: 0.20, rev: 0.03, kick: "drive" },     // 3 展開
+  { e: 0.60, gate: "QUANTUM", swing: 0.20, irr: 0.90, rev: 0.10, kick: "odd" },       // 4 変則ブリッジ
+  { e: 1.00, gate: "OR",      swing: 0.10, irr: 0.50, rev: 0.05, kick: "driveOdd" },  // 5 総仕上げ
+];
+// per-stage lane activity [sub,thud,click,tick,pop,grain,dust,hiss] — thud(=kick) stays present in intro
+const SL: number[][] = [[],
+  [0.75, 0.85, 0.15, 0.15, 0.10, 0.5, 0.6, 0.7],
+  [0.85, 1.00, 0.70, 0.70, 0.35, 0.4, 0.5, 0.45],
+  [1.00, 1.00, 1.10, 1.10, 0.80, 0.9, 0.85, 0.7],
+  [0.60, 0.60, 0.90, 1.05, 1.10, 1.0, 0.9, 0.6],
+  [1.00, 1.05, 1.00, 1.00, 0.90, 1.0, 1.0, 0.8],
+];
 
 // base pulse density per lane [sub,thud,click,tick,pop,grain,dust,hiss]
 const BASE = [0.25, 0.15, 0.45, 0.5, 0.2, 0.35, 0.25, 0.12];
@@ -49,6 +66,24 @@ function euclid(k: number, n: number, rot: number): boolean[] {
   }
   return out;
 }
+// scattered/off-beat placement — the "変則" feel (biased away from the strong beats)
+function scramble(k: number, rng: () => number): boolean[] {
+  const out = new Array(16).fill(false);
+  let placed = 0, guard = 0;
+  while (placed < Math.min(k, 12) && guard++ < 200) {
+    const s = Math.floor(rng() * 16);
+    const off = (s % 4 !== 0) ? 1 : 0.35; // prefer off-beats
+    if (!out[s] && rng() < off) { out[s] = true; placed++; }
+  }
+  return out;
+}
+function steps(arr: number[]): boolean[] { const o = new Array(16).fill(false); for (const i of arr) o[i % 16] = true; return o; }
+function kickPattern(mode: string, rng: () => number): boolean[] {
+  if (mode === "drive") return steps([0, 4, 8, 12, 14]);
+  if (mode === "driveOdd") return steps([0, 4, 8, 12, 6, 14]);
+  if (mode === "odd") return scramble(3, rng);
+  return steps([0, 4, 8, 12]); // floor
+}
 
 export interface Factors { engine: string; climate: string; current: string; soil: string; weather: string }
 export interface SectionInfo { stage: number; section: number }
@@ -72,50 +107,50 @@ export class Arranger {
 
   private derive(state: ParamState, seq: PulseSequencer, f: Factors, sec: number, stage: number): void {
     const rng = mulberry32(hash(`${f.engine}|${f.climate}|${f.current}|${f.soil}|${f.weather}|${sec}`));
-    const energy = STAGE_E[stage];
+    const P = STAGES[stage] ?? STAGES[1]!;
+    const sl = SL[stage] ?? SL[1];
+    const energy = P.e;
     const cV = CLIMATE_V[f.climate], curV = CURRENT_V[f.current], soV = SOIL_V[f.soil], weV = WEATHER_V[f.weather];
     const emph = SOIL_EMPH[f.soil] ?? SOIL_EMPH.loam;
 
-    // ── global feel ──
-    state.bpm = clamp(Math.round(80 + cV * 44 + energy * 14 + (rng() - 0.5) * 6), 40, 200);
-    state.swing = clamp(0.12 + weV * 0.34 + (f.engine === "PHYSICS" ? 0.12 * Math.sin(sec) : 0), 0, 0.7);
-    state.patternDensity = clamp(0.25 + curV * 0.55, 0, 1);
-    state.gateThresh = clamp(0.28 + (1 - energy) * 0.22, 0, 1);
-    state.dustField = clamp(3 + weV * 22, 0, 30);
+    // ── global feel (stage narrative × factors) ──
+    state.bpm = clamp(Math.round(78 + cV * 44 + energy * 16 + (rng() - 0.5) * 6), 40, 200);
+    state.swing = clamp(0.10 + weV * 0.28 + P.swing + (f.engine === "PHYSICS" ? 0.1 * Math.sin(sec) : 0), 0, 0.7);
+    state.patternDensity = clamp(0.25 + curV * 0.5 + energy * 0.15, 0, 1);
+    state.gateThresh = clamp(0.30 + (1 - energy) * 0.2, 0, 1);
+    state.dustField = clamp(3 + weV * 20 + energy * 4, 0, 30);
     state.warmth = clamp(0.2 + soV * 0.45, 0, 1);
     const fogDark = f.weather === "fog" ? 0.6 : f.weather === "storm" ? 1.25 : 1;
-    state.lowpass = clamp(Math.round((2600 + cV * 6000) * fogDark), 400, 16000);
-    state.reverbMix = clamp(0.12 + weV * 0.3, 0, 1);
-    // gate mode by engine
-    state.gateMode = f.engine === "GEOMETRY" ? (sec % 2 ? "AND" : "MANUAL")
-      : f.engine === "PHYSICS" ? "OR"
-      : GATES[2 + (sec % 2)]; // PLANT: AND / OR
+    state.lowpass = clamp(Math.round((2500 + cV * 6000) * fogDark), 400, 16000);
+    state.reverbMix = clamp(0.10 + weV * 0.25 + P.rev, 0, 1);
+    state.gateMode = P.gate; // stage drives the gate: intro/run reliable grid, bridge field-driven, finale both
 
     // ── regenerate the 8 lane patterns ──
     for (let l = 0; l < PARTICLES.length; l++) {
-      let dens = BASE[l] * emph[l] * (0.45 + energy);
-      if (f.engine === "PHYSICS") dens *= 0.5 + 0.5 * Math.sin(sec * 0.8 + l * 1.3 + curV * 6);
-      dens = clamp(dens, 0, 0.95);
-      let k = Math.round(dens * 16);
-      let rot: number;
-      if (f.engine === "GEOMETRY") { // snap pulse count to symmetric divisors
-        const divs = [2, 4, 8, 16];
-        k = k <= 0 ? 0 : divs.reduce((a, b) => (Math.abs(b - k) < Math.abs(a - k) ? b : a));
-        rot = (l * 2) % 8;
-      } else if (f.engine === "PLANT") {
-        rot = Math.floor(rng() * 4) + (stage - 1); // grows/shifts as it develops
+      let pat: boolean[];
+      if (l === 1) {
+        pat = kickPattern(P.kick, rng); // thud = kick, dedicated pattern
       } else {
-        rot = Math.floor(rng() * 16);
+        let dens = BASE[l] * emph[l] * sl[l] * (0.4 + energy * 0.8);
+        if (f.engine === "PHYSICS") dens *= 0.5 + 0.5 * Math.sin(sec * 0.8 + l * 1.3 + curV * 6);
+        dens = clamp(dens, 0, 0.95);
+        let k = Math.round(dens * 16);
+        if (f.engine === "GEOMETRY") { const divs = [2, 4, 8, 16]; k = k <= 0 ? 0 : divs.reduce((a, b) => (Math.abs(b - k) < Math.abs(a - k) ? b : a)); }
+        if (rng() < P.irr) {
+          pat = scramble(k, rng); // 変則
+        } else {
+          const rot = f.engine === "GEOMETRY" ? (l * 2) % 8 : f.engine === "PLANT" ? (stage - 1 + l) % 4 : Math.floor(rng() * 16);
+          pat = euclid(k, 16, rot);
+        }
       }
-      seq.steps[l] = euclid(k, 16, rot);
-      // probability shimmer
+      seq.steps[l] = pat;
       const pr = seq.prob[l];
-      for (let s = 0; s < 16; s++) pr[s] = 0.6 + rng() * 0.4;
+      for (let s = 0; s < 16; s++) pr[s] = 0.65 + rng() * 0.35;
     }
 
-    // ── lane levels by soil emphasis + energy ──
+    // ── lane levels: soil emphasis × stage lane activity (thud stays strong in intro) ──
     const setLvl = (name: keyof ParamState, i: number, ceil: number): void => {
-      state[name] = clamp(0.25 + emph[i] * 0.3 + energy * 0.2, 0, ceil);
+      state[name] = clamp((0.25 + emph[i] * 0.28 + energy * 0.2) * (0.45 + 0.55 * sl[i]), 0, ceil);
     };
     setLvl("subLevel", 0, 1); setLvl("thudLevel", 1, 1); setLvl("clickLevel", 2, 1);
     setLvl("tickLevel", 3, 1); setLvl("popLevel", 4, 1); setLvl("grainLevel", 5, 1);
