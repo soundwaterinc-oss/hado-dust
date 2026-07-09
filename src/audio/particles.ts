@@ -14,14 +14,21 @@ export type Character = typeof CHARACTERS[number];
 
 interface CC {
   clickMul: number; clickQ: number; clickDecayMul: number; tickMul: number;
-  pure: boolean; pips: boolean; grainFM: boolean; subDrive: number; lp: number; dustMul: number;
+  pure: boolean; pips: boolean; grainFM: boolean; subDrive: number; lp: number; dustMul: number; kickDrive: number;
 }
 const CONFIGS: Record<Character, CC> = {
-  DUST:     { clickMul: 1,   clickQ: 3,  clickDecayMul: 1,   tickMul: 1,   pure: false, pips: false, grainFM: false, subDrive: 0,    lp: 1,   dustMul: 1 },
-  MONOLAKE: { clickMul: 0.7, clickQ: 6,  clickDecayMul: 1.5, tickMul: 0.8, pure: false, pips: false, grainFM: true,  subDrive: 0.35, lp: 0.7, dustMul: 0.7 },
-  IKEDA:    { clickMul: 1.7, clickQ: 14, clickDecayMul: 0.5, tickMul: 1.6, pure: true,  pips: true,  grainFM: false, subDrive: 0,    lp: 1.3, dustMul: 0.6 },
-  POLE:     { clickMul: 0.5, clickQ: 4,  clickDecayMul: 1.7, tickMul: 0.6, pure: false, pips: false, grainFM: false, subDrive: 0.15, lp: 0.5, dustMul: 1.7 },
+  DUST:     { clickMul: 1,   clickQ: 3,  clickDecayMul: 1,   tickMul: 1,   pure: false, pips: false, grainFM: false, subDrive: 0,    lp: 1,   dustMul: 1,   kickDrive: 0.3 },
+  MONOLAKE: { clickMul: 0.7, clickQ: 6,  clickDecayMul: 1.5, tickMul: 0.8, pure: false, pips: false, grainFM: true,  subDrive: 0.35, lp: 0.7, dustMul: 0.7, kickDrive: 0.45 },
+  IKEDA:    { clickMul: 1.7, clickQ: 14, clickDecayMul: 0.5, tickMul: 1.6, pure: true,  pips: true,  grainFM: false, subDrive: 0,    lp: 1.3, dustMul: 0.6, kickDrive: 0.7 },
+  POLE:     { clickMul: 0.5, clickQ: 4,  clickDecayMul: 1.7, tickMul: 0.6, pure: false, pips: false, grainFM: false, subDrive: 0.15, lp: 0.5, dustMul: 1.7, kickDrive: 0.35 },
 };
+
+// tanh saturation curve for the gritty kick body
+function kickCurve(drive: number): Float32Array<ArrayBuffer> {
+  const n = 1024, c = new Float32Array(n), k = 1 + drive * 45;
+  for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 2 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); }
+  return c;
+}
 
 const LEVEL: Record<Particle, keyof ParamState> = {
   sub: "subLevel", thud: "thudLevel", click: "clickLevel", tick: "tickLevel",
@@ -102,17 +109,33 @@ export class ParticleKit {
     }
   }
 
+  // the kick of the machine — punchy, gritty, physical (Ikeda-ish): deep sine with a fast
+  // pitch drop through a saturation shaper + a mid thwack + a razor high click.
   private thud(time: number, lvl: number, p: ParamState, pan: number): void {
     const ctx = this.ctx;
-    const osc = ctx.createOscillator(); osc.type = "sine"; osc.frequency.value = (p.subTune as number) * 1.8;
-    const g = this.pluckEnv(time, 0.12, lvl * 0.8);
-    const nz = this.noiseSrc(time, 0.04);
-    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 600 * this.cc.lp;
-    const ng = this.pluckEnv(time, 0.04, lvl * 0.5);
-    const pn = this.pan(pan * 0.4);
-    osc.connect(g); nz.connect(lp); lp.connect(ng);
-    g.connect(pn); ng.connect(pn); pn.connect(this.out);
-    osc.start(time); osc.stop(time + 0.16);
+    const cc = this.cc;
+    const f = p.subTune as number;
+    const pn = this.pan(pan * 0.3);
+    // body
+    const osc = ctx.createOscillator(); osc.type = "sine";
+    osc.frequency.setValueAtTime(f * 6, time);
+    osc.frequency.exponentialRampToValueAtTime(f, time + 0.04);
+    const shaper = ctx.createWaveShaper(); shaper.curve = kickCurve(cc.kickDrive); shaper.oversample = "2x";
+    const g = this.pluckEnv(time, 0.17, lvl);
+    osc.connect(shaper); shaper.connect(g); g.connect(pn);
+    osc.start(time); osc.stop(time + 0.22);
+    // thwack transient
+    const t2 = ctx.createOscillator(); t2.type = "triangle";
+    t2.frequency.setValueAtTime(f * 11, time);
+    t2.frequency.exponentialRampToValueAtTime(f * 2, time + 0.014);
+    const tg = this.pluckEnv(time, 0.02, lvl * 0.65);
+    t2.connect(tg); tg.connect(pn); t2.start(time); t2.stop(time + 0.05);
+    // razor click
+    const nz = this.noiseSrc(time, 0.006);
+    const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 2600 * cc.lp;
+    const ng = this.pluckEnv(time, 0.006, lvl * (0.3 + 0.5 * cc.kickDrive));
+    nz.connect(hp); hp.connect(ng); ng.connect(pn);
+    pn.connect(this.out);
   }
 
   private click(time: number, lvl: number, p: ParamState, pan: number): void {
