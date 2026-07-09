@@ -109,43 +109,39 @@ export class ParticleKit {
     }
   }
 
-  // the kick — "cable-pull" ブツっとゴツい: instant onset, hard-clipped chunky body,
-  // abrupt gated cut-off (the hard step = the unplug pop), broadband crackle + deep sub.
+  // 鈍音 — metallic HARD low tone, main energy ~60–100 Hz. A strong low fundamental
+  // (FM + hard-clip = 硬い) with inharmonic metallic ring partials on top.
   private thud(time: number, lvl: number, p: ParamState, pan: number): void {
     const ctx = this.ctx;
     const cc = this.cc;
-    const f = p.subTune as number;
-    const pn = this.pan(pan * 0.3);
-    const bodyLen = 0.06;
-    const cut = time + bodyLen;
-    const shaper = ctx.createWaveShaper(); shaper.curve = kickCurve(0.4 + cc.kickDrive * 0.6); shaper.oversample = "4x";
-    // body: sine + square, fast pitch drop, hard clipped
-    const osc = ctx.createOscillator(); osc.type = "sine";
-    osc.frequency.setValueAtTime(f * 5, time);
-    osc.frequency.exponentialRampToValueAtTime(f, time + 0.022);
-    const sq = ctx.createOscillator(); sq.type = "square";
-    sq.frequency.setValueAtTime(f * 2.5, time);
-    sq.frequency.exponentialRampToValueAtTime(f, time + 0.03);
-    const sqg = ctx.createGain(); sqg.gain.value = 0.5;
+    const f = Math.max(60, Math.min(100, (p.subTune as number) * 1.35)); // main low 60–100 Hz
+    const pn = this.pan(pan * 0.25);
+    const decay = 0.16;
+    // low fundamental — metallic via inharmonic FM, hard via clip shaper
+    const car = ctx.createOscillator(); car.type = "sine";
+    car.frequency.setValueAtTime(f * 1.4, time);
+    car.frequency.exponentialRampToValueAtTime(f, time + 0.02);
+    const mod = ctx.createOscillator(); mod.type = "sine"; mod.frequency.value = f * 2.76;
+    const mg = ctx.createGain();
+    mg.gain.setValueAtTime(f * (2.5 + cc.kickDrive * 4), time);
+    mg.gain.exponentialRampToValueAtTime(f * 0.4, time + decay);
+    mod.connect(mg); mg.connect(car.frequency);
+    const shaper = ctx.createWaveShaper(); shaper.curve = kickCurve(0.6 + cc.kickDrive * 0.4); shaper.oversample = "4x";
     const g = ctx.createGain();
     g.gain.setValueAtTime(0, time);
-    g.gain.linearRampToValueAtTime(lvl * 1.2, time + 0.0004);
-    g.gain.setValueAtTime(lvl, cut);
-    g.gain.linearRampToValueAtTime(0, cut + 0.0012);   // ABRUPT cut = ブツッ
-    osc.connect(shaper); sq.connect(sqg); sqg.connect(shaper); shaper.connect(g); g.connect(pn);
-    osc.start(time); osc.stop(cut + 0.02); sq.start(time); sq.stop(cut + 0.02);
-    // deep DC-ish thump, also cut abruptly
-    const sub = ctx.createOscillator(); sub.type = "sine"; sub.frequency.value = f * 0.7;
-    const subg = ctx.createGain();
-    subg.gain.setValueAtTime(0, time); subg.gain.linearRampToValueAtTime(lvl * 0.85, time + 0.0006);
-    subg.gain.setValueAtTime(lvl * 0.65, cut); subg.gain.linearRampToValueAtTime(0, cut + 0.001);
-    sub.connect(subg); subg.connect(pn); sub.start(time); sub.stop(cut + 0.02);
-    // broadband "pull" crackle
-    const nz = this.noiseSrc(time, 0.004);
-    const nsh = ctx.createWaveShaper(); nsh.curve = kickCurve(0.8);
-    const ng = ctx.createGain();
-    ng.gain.setValueAtTime(lvl * (0.5 + 0.5 * cc.kickDrive), time); ng.gain.linearRampToValueAtTime(0, time + 0.004);
-    nz.connect(nsh); nsh.connect(ng); ng.connect(pn);
+    g.gain.linearRampToValueAtTime(lvl, time + 0.0008);           // hard attack
+    g.gain.exponentialRampToValueAtTime(0.0001, time + decay);
+    car.connect(shaper); shaper.connect(g); g.connect(pn);
+    car.start(time); car.stop(time + decay + 0.05); mod.start(time); mod.stop(time + decay + 0.05);
+    // metallic ring partials (inharmonic, fast decay, low level) for the metal sheen
+    for (const [ratio, lv, dec] of [[4.2, 0.22, 0.09], [6.7, 0.15, 0.06], [9.4, 0.1, 0.04]] as const) {
+      const o = ctx.createOscillator(); o.type = "sine"; o.frequency.value = Math.min(9000, f * ratio * cc.lp);
+      const rg = ctx.createGain();
+      rg.gain.setValueAtTime(0, time);
+      rg.gain.linearRampToValueAtTime(lvl * lv, time + 0.001);
+      rg.gain.exponentialRampToValueAtTime(0.0001, time + dec);
+      o.connect(rg); rg.connect(pn); o.start(time); o.stop(time + dec + 0.03);
+    }
     pn.connect(this.out);
   }
 
