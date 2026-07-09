@@ -93,18 +93,25 @@ export class ParticleKit {
 
   private sub(time: number, lvl: number, p: ParamState, pan: number): void {
     const ctx = this.ctx;
+    const boost = 1.78; // +5 dB
     const osc = ctx.createOscillator(); osc.type = "sine";
     const f = p.subTune as number;
-    osc.frequency.setValueAtTime(f * 1.6, time);
-    osc.frequency.exponentialRampToValueAtTime(f, time + 0.05);
+    osc.frequency.setValueAtTime(f * 2.2, time);           // sharper pitch snap = harder attack
+    osc.frequency.exponentialRampToValueAtTime(f, time + 0.03);
     const dur = 0.09 + (p.grainSize as number) / 900;
-    const g = this.pluckEnv(time, dur, lvl);
     const pn = this.pan(pan * 0.3);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, time);
+    g.gain.linearRampToValueAtTime(lvl * boost, time + 0.0004); // strong, near-instant attack
+    g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
     osc.connect(g); g.connect(pn); pn.connect(this.out);
     osc.start(time); osc.stop(time + dur + 0.05);
     if (this.cc.subDrive > 0) { // add a soft 2nd partial for dub weight
       const o2 = ctx.createOscillator(); o2.type = "triangle"; o2.frequency.value = f * 2;
-      const g2 = this.pluckEnv(time, dur * 0.8, lvl * this.cc.subDrive);
+      const g2 = ctx.createGain();
+      g2.gain.setValueAtTime(0, time);
+      g2.gain.linearRampToValueAtTime(lvl * this.cc.subDrive * boost, time + 0.0004);
+      g2.gain.exponentialRampToValueAtTime(0.0001, time + dur * 0.8);
       o2.connect(g2); g2.connect(pn); o2.start(time); o2.stop(time + dur + 0.05);
     }
   }
