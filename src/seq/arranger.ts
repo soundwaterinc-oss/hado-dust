@@ -22,23 +22,25 @@ const WEATHER_V: Record<string, number> = { clear: 0.4, rain: 0.6, storm: 0.9, f
 // rev=extra reverb, kick=thud(kick)-lane pattern. NOTE: stage 1 keeps a solid kick.
 interface Stage { e: number; gate: string; swing: number; irr: number; rev: number; kick: string }
 const STAGES: (Stage | null)[] = [null,
-  { e: 0.28, gate: "MANUAL",  swing: 0.00, irr: 0.05, rev: 0.14, kick: "floor" },     // 1 序章 intro
-  { e: 0.52, gate: "MANUAL",  swing: 0.03, irr: 0.05, rev: 0.05, kick: "floor" },     // 2 走り出し
-  { e: 0.85, gate: "AND",     swing: 0.05, irr: 0.20, rev: 0.03, kick: "drive" },     // 3 展開
-  { e: 0.60, gate: "QUANTUM", swing: 0.20, irr: 0.90, rev: 0.10, kick: "odd" },       // 4 変則ブリッジ
+  { e: 0.45, gate: "MANUAL",  swing: 0.00, irr: 0.05, rev: 0.14, kick: "floor" },     // 1 序章 intro（音数は多め、ticks/pop を抜く）
+  { e: 0.65, gate: "MANUAL",  swing: 0.03, irr: 0.05, rev: 0.05, kick: "floor" },     // 2 走り出し（差し込む）
+  { e: 0.90, gate: "AND",     swing: 0.05, irr: 0.20, rev: 0.03, kick: "drive" },     // 3 展開（全部入り）
+  { e: 0.70, gate: "QUANTUM", swing: 0.20, irr: 0.85, rev: 0.10, kick: "odd" },       // 4 変則ブリッジ（低域を抜き中域を差す）
   { e: 1.00, gate: "OR",      swing: 0.10, irr: 0.50, rev: 0.05, kick: "driveOdd" },  // 5 総仕上げ
 ];
-// per-stage lane activity [sub,thud,click,tick,pop,grain,dust,hiss] — thud(=kick) stays present in intro
+// per-stage lane activity [sub,thud,click,tick,pop,grain,dust,hiss] — 0 = 抜き, 1 = full 差し.
+// Each stage keeps a solid dense core and pulls a few layers in/out for the development.
 const SL: number[][] = [[],
-  [0.75, 0.85, 0.15, 0.15, 0.10, 0.5, 0.6, 0.7],
-  [0.85, 1.00, 0.70, 0.70, 0.35, 0.4, 0.5, 0.45],
-  [1.00, 1.00, 1.10, 1.10, 0.80, 0.9, 0.85, 0.7],
-  [0.60, 0.60, 0.90, 1.05, 1.10, 1.0, 0.9, 0.6],
-  [1.00, 1.05, 1.00, 1.00, 0.90, 1.0, 1.0, 0.8],
+  [0.9, 0.9, 0.7, 0.0, 0.0, 0.8, 1.0, 0.9], // 1 intro: kick+sub+click+grain+dust+hiss 常時、tick/pop を抜く
+  [1.0, 1.0, 1.0, 0.9, 0.5, 0.6, 0.8, 0.5], // 2 run: tick/pop を差し込む
+  [1.0, 1.0, 1.1, 1.1, 1.0, 1.0, 0.9, 0.8], // 3 expand: 全部入り
+  [0.6, 0.6, 1.0, 1.1, 1.1, 1.0, 1.0, 0.7], // 4 bridge: 低域(sub/thud)を抜き、中域/変則を差す
+  [1.0, 1.05, 1.0, 1.0, 0.9, 1.0, 1.0, 0.9], // 5 finale: 全部戻す
 ];
 
-// base pulse density per lane [sub,thud,click,tick,pop,grain,dust,hiss]
-const BASE = [0.25, 0.15, 0.45, 0.5, 0.2, 0.35, 0.25, 0.12];
+// base pulse density per lane [sub,thud,click,tick,pop,grain,dust,hiss] — kept high so the
+// texture is always full; development happens by pulling lanes in/out (抜き差し), not by emptying.
+const BASE = [0.4, 0.15, 0.6, 0.6, 0.35, 0.5, 0.45, 0.3];
 // soil emphasis multiplier per lane
 const SOIL_EMPH: Record<string, number[]> = {
   sand: [0.6, 0.5, 1.3, 1.3, 0.9, 0.9, 1.0, 1.2],
@@ -118,7 +120,7 @@ export class Arranger {
     state.swing = clamp(0.10 + weV * 0.28 + P.swing + (f.engine === "PHYSICS" ? 0.1 * Math.sin(sec) : 0), 0, 0.7);
     state.patternDensity = clamp(0.25 + curV * 0.5 + energy * 0.15, 0, 1);
     state.gateThresh = clamp(0.30 + (1 - energy) * 0.2, 0, 1);
-    state.dustField = clamp(3 + weV * 20 + energy * 4, 0, 30);
+    state.dustField = clamp(7 + weV * 17 + energy * 5, 0, 30);
     state.warmth = clamp(0.2 + soV * 0.45, 0, 1);
     const fogDark = f.weather === "fog" ? 0.6 : f.weather === "storm" ? 1.25 : 1;
     state.lowpass = clamp(Math.round((2500 + cV * 6000) * fogDark), 400, 16000);
@@ -131,7 +133,7 @@ export class Arranger {
       if (l === 1) {
         pat = kickPattern(P.kick, rng); // thud = kick, dedicated pattern
       } else {
-        let dens = BASE[l] * emph[l] * sl[l] * (0.4 + energy * 0.8);
+        let dens = BASE[l] * emph[l] * sl[l] * (0.6 + energy * 0.5);
         if (f.engine === "PHYSICS") dens *= 0.5 + 0.5 * Math.sin(sec * 0.8 + l * 1.3 + curV * 6);
         dens = clamp(dens, 0, 0.95);
         let k = Math.round(dens * 16);
